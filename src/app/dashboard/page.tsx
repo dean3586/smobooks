@@ -10,7 +10,6 @@ import {
   GIFT_OCCASIONS,
   buildMealPurpose,
   buildGiftPurpose,
-  type PurposeMode,
 } from "@/lib/purposes";
 import {
   LogOut,
@@ -64,7 +63,6 @@ export default function DashboardPage() {
   // Categorize flow
   const [categorizeMode, setCategorizeMode] = useState(false);
   const [categorizeIndex, setCategorizeIndex] = useState(0);
-  const [categorizePurposeMode, setCategorizePurposeMode] = useState<PurposeMode>("meal");
   const [catMealType, setCatMealType] = useState<string | null>(null);
   const [catPeople, setCatPeople] = useState<string[]>([]);
   const [catGiftOccasion, setCatGiftOccasion] = useState<string | null>(null);
@@ -187,7 +185,6 @@ export default function DashboardPage() {
   const currentCategorizeReceipt = unreviewedReceipts[categorizeIndex];
 
   function resetCategorizeForm() {
-    setCategorizePurposeMode("meal");
     setCatMealType(null);
     setCatPeople([]);
     setCatGiftOccasion(null);
@@ -201,11 +198,19 @@ export default function DashboardPage() {
     resetCategorizeForm();
   }
 
+  function getSelectedCategory(): string {
+    return editingReceipt?.category || currentCategorizeReceipt?.category || "";
+  }
+
   function getCatPurpose(): string {
-    if (categorizePurposeMode === "custom") return catCustomPurpose.trim();
-    if (categorizePurposeMode === "meal") return buildMealPurpose(catMealType, catPeople);
-    if (categorizePurposeMode === "gift") return buildGiftPurpose(catGiftOccasion, catGiftRecipients);
-    return "";
+    const cat = getSelectedCategory();
+    if (cat === "Meals & Entertainment") {
+      return buildMealPurpose(catMealType, catPeople) || catCustomPurpose.trim();
+    }
+    if (cat === "Gift") {
+      return buildGiftPurpose(catGiftOccasion, catGiftRecipients) || catCustomPurpose.trim();
+    }
+    return catCustomPurpose.trim();
   }
 
   async function saveCategorize(receipt: Receipt, category: string, description: string) {
@@ -486,101 +491,100 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Purpose */}
+          {/* Purpose - adapts to selected category */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <label className="block text-xs text-gray-500 uppercase tracking-wide">Purpose</label>
 
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-              {([
-                ["meal", "Meal"],
-                ["gift", "Gift"],
-                ["custom", "Custom"],
-              ] as [PurposeMode, string][]).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  onClick={() => setCategorizePurposeMode(mode)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    categorizePurposeMode === mode
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {categorizePurposeMode === "meal" && (
+            {/* Meals & Entertainment: show meal type + people pills */}
+            {(editingReceipt?.category || currentCategorizeReceipt.category) === "Meals & Entertainment" && (
               <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {MEAL_TYPES.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setCatMealType(catMealType === type ? null : type)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        catMealType === type ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1.5">Type</span>
+                  <div className="flex flex-wrap gap-2">
+                    {MEAL_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setCatMealType(catMealType === type ? null : type)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          catMealType === type ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {COMMON_PEOPLE.map((person) => (
-                    <button
-                      key={person}
-                      onClick={() => toggleInList(catPeople, person, setCatPeople)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        catPeople.includes(person) ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {person}
-                    </button>
-                  ))}
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1.5">With whom</span>
+                  <div className="flex flex-wrap gap-2">
+                    {COMMON_PEOPLE.map((person) => (
+                      <button
+                        key={person}
+                        onClick={() => toggleInList(catPeople, person, setCatPeople)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          catPeople.includes(person) ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {person}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            {categorizePurposeMode === "gift" && (
+            {/* Gift: show occasion + recipient pills */}
+            {(editingReceipt?.category || currentCategorizeReceipt.category) === "Gift" && (
               <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {GIFT_OCCASIONS.map((occasion) => (
-                    <button
-                      key={occasion}
-                      onClick={() => setCatGiftOccasion(catGiftOccasion === occasion ? null : occasion)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        catGiftOccasion === occasion ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {occasion}
-                    </button>
-                  ))}
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1.5">Occasion</span>
+                  <div className="flex flex-wrap gap-2">
+                    {GIFT_OCCASIONS.map((occasion) => (
+                      <button
+                        key={occasion}
+                        onClick={() => setCatGiftOccasion(catGiftOccasion === occasion ? null : occasion)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          catGiftOccasion === occasion ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {occasion}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {GIFT_RECIPIENTS.map((recipient) => (
-                    <button
-                      key={recipient}
-                      onClick={() => toggleInList(catGiftRecipients, recipient, setCatGiftRecipients)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        catGiftRecipients.includes(recipient) ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {recipient}
-                    </button>
-                  ))}
+                <div>
+                  <span className="block text-xs text-gray-400 mb-1.5">For whom</span>
+                  <div className="flex flex-wrap gap-2">
+                    {GIFT_RECIPIENTS.map((recipient) => (
+                      <button
+                        key={recipient}
+                        onClick={() => toggleInList(catGiftRecipients, recipient, setCatGiftRecipients)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          catGiftRecipients.includes(recipient) ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {recipient}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            {categorizePurposeMode === "custom" && (
-              <input
-                type="text"
-                value={catCustomPurpose}
-                onChange={(e) => setCatCustomPurpose(e.target.value)}
-                placeholder="e.g. Career planning dinner with Dr. Smith"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900"
-              />
-            )}
+            {/* Custom text - always available as fallback or primary for other categories */}
+            <input
+              type="text"
+              value={catCustomPurpose}
+              onChange={(e) => setCatCustomPurpose(e.target.value)}
+              placeholder={
+                (editingReceipt?.category || currentCategorizeReceipt.category) === "Meals & Entertainment"
+                  ? "Or type a custom purpose..."
+                  : (editingReceipt?.category || currentCategorizeReceipt.category) === "Gift"
+                    ? "Or type a custom purpose..."
+                    : "e.g. Taxi to airport for conference"
+              }
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900"
+            />
 
             {purpose && (
               <div className="bg-teal-50 rounded-lg p-2 text-sm text-teal-800">

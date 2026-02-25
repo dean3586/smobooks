@@ -181,7 +181,9 @@ export default function DashboardPage() {
   }
 
   // Categorize flow helpers
-  const unreviewedReceipts = receipts.filter((r) => !r.reviewed && r.status === "completed");
+  const unreviewedReceipts = receipts.filter(
+    (r) => !r.reviewed && r.status === "completed" && (!r.category || !r.description)
+  );
   const currentCategorizeReceipt = unreviewedReceipts[categorizeIndex];
 
   function resetCategorizeForm() {

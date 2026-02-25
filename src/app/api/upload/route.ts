@@ -89,11 +89,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Process with Claude before responding (must await in serverless)
-    await processReceipt(receipt.id, normalizedBuffer);
+    const extracted = await processReceipt(receipt.id, normalizedBuffer);
 
     return NextResponse.json({
       success: true,
       receiptId: receipt.id,
+      category: extracted?.category || null,
+      vendor: extracted?.vendor || null,
+      total: extracted?.total || null,
       message: "Receipt uploaded and processed!",
     });
   } catch (error) {
@@ -105,7 +108,7 @@ export async function POST(request: NextRequest) {
 async function processReceipt(
   receiptId: string,
   imageBuffer: Buffer
-) {
+): Promise<Record<string, unknown> | null> {
   const supabase = createServiceClient();
 
   try {
@@ -180,6 +183,8 @@ Rules:
         status: "completed",
       })
       .eq("id", receiptId);
+
+    return extracted;
   } catch (error) {
     console.error("Processing error:", error);
 
@@ -190,5 +195,7 @@ Rules:
         notes: `Processing error: ${error instanceof Error ? error.message : "Unknown error"}`,
       })
       .eq("id", receiptId);
+
+    return null;
   }
 }

@@ -292,9 +292,17 @@ export default function UploadPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4">
-              <h2 className="font-semibold text-gray-900">
-                Add Purpose <span className="text-gray-400 font-normal text-sm">(optional)</span>
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">
+                  Add Purpose <span className="text-gray-400 font-normal text-sm">(optional)</span>
+                </h2>
+                <button
+                  onClick={skipPurpose}
+                  className="text-sm text-gray-400 hover:text-gray-600 font-medium"
+                >
+                  Skip
+                </button>
+              </div>
 
               {/* Meals & Entertainment: meal type + people pills */}
               {detectedCategory === "Meals & Entertainment" && (

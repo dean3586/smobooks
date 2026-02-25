@@ -88,13 +88,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create receipt record" }, { status: 500 });
     }
 
-    // Send to Claude for extraction (don't await - process in background)
-    processReceipt(receipt.id, normalizedBuffer).catch(console.error);
+    // Process with Claude before responding (must await in serverless)
+    await processReceipt(receipt.id, normalizedBuffer);
 
     return NextResponse.json({
       success: true,
       receiptId: receipt.id,
-      message: "Receipt uploaded! Processing will complete shortly.",
+      message: "Receipt uploaded and processed!",
     });
   } catch (error) {
     console.error("Upload handler error:", error);

@@ -67,6 +67,18 @@ on receipts for update
 to authenticated
 using (true);
 
+-- RLS: Only authenticated users can delete
+create policy "Allow authenticated deletes"
+on receipts for delete
+to authenticated
+using (true);
+
+-- Allow authenticated deletes from storage
+create policy "Allow authenticated storage deletes"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'receipts');
+
 -- Index for dashboard queries
 create index idx_receipts_date on receipts (receipt_date desc);
 create index idx_receipts_category on receipts (category);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import Anthropic from "@anthropic-ai/sdk";
 import { EXPENSE_CATEGORIES } from "@/lib/categories";
+import sharp from "sharp";
 
 const anthropic = new Anthropic();
 
@@ -14,29 +15,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
-    if (!allowedTypes.includes(file.type)) {
+    // Accept common image types including HEIC from iPhones
+    const allowedTypes = [
+      "image/jpeg", "image/png", "image/webp",
+      "image/heic", "image/heif",
+      "image/gif", "image/tiff", "image/bmp",
+    ];
+    if (!allowedTypes.includes(file.type) && !file.type.startsWith("image/")) {
       return NextResponse.json(
-        { error: "Invalid file type. Please upload a JPEG, PNG, or WebP image." },
+        { error: "Invalid file type. Please upload an image." },
         { status: 400 }
       );
     }
 
     const supabase = createServiceClient();
 
-    // Upload image to Supabase Storage
-    const fileExt = file.name.split(".").pop() || "jpg";
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-    const filePath = `uploads/${fileName}`;
-
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const inputBuffer = Buffer.from(arrayBuffer);
+
+    // Normalize image: convert to JPEG, auto-rotate based on EXIF, and resize if huge
+    let normalizedBuffer: Buffer;
+    try {
+      normalizedBuffer = await sharp(inputBuffer)
+        .rotate() // Auto-rotate based on EXIF orientation
+        .jpeg({ quality: 85 })
+        .resize(2048, 2048, { fit: "inside", withoutEnlargement: true })
+        .toBuffer();
+    } catch (e) {
+      console.error("Image processing error:", e);
+      return NextResponse.json(
+        { error: "Could not process this image. Try taking the photo again." },
+        { status: 400 }
+      );
+    }
+
+    // Upload the normalized JPEG to Supabase Storage
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`;
+    const filePath = `uploads/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("receipts")
-      .upload(filePath, buffer, {
-        contentType: file.type,
+      .upload(filePath, normalizedBuffer, {
+        contentType: "image/jpeg",
         upsert: false,
       });
 
@@ -69,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Send to Claude for extraction (don't await - process in background)
-    processReceipt(receipt.id, imageUrl, file.type, buffer).catch(console.error);
+    processReceipt(receipt.id, normalizedBuffer).catch(console.error);
 
     return NextResponse.json({
       success: true,
@@ -84,8 +104,6 @@ export async function POST(request: NextRequest) {
 
 async function processReceipt(
   receiptId: string,
-  imageUrl: string,
-  mediaType: string,
   imageBuffer: Buffer
 ) {
   const supabase = createServiceClient();
@@ -104,13 +122,15 @@ async function processReceipt(
               type: "image",
               source: {
                 type: "base64",
-                media_type: mediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+                media_type: "image/jpeg",
                 data: base64Image,
               },
             },
             {
               type: "text",
-              text: `You are a receipt data extraction assistant for a medical practice. Extract the following information from this receipt image and return it as JSON only (no markdown, no code fences, just raw JSON):
+              text: `You are a receipt data extraction assistant for a medical practice. The image may be rotated, upside down, or at an angle — read it in whatever orientation makes the text legible.
+
+Extract the following information from this receipt image and return it as JSON only (no markdown, no code fences, just raw JSON):
 
 {
   "vendor": "Store/business name",

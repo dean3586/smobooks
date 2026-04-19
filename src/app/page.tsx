@@ -750,8 +750,7 @@ function ZoomableImage({ src, onClose }: { src: string; onClose: () => void }) {
     return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
   }
 
-  function onPointerDown(e: React.PointerEvent<HTMLImageElement>) {
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (pointers.current.size === 1) {
@@ -765,7 +764,7 @@ function ZoomableImage({ src, onClose }: { src: string; onClose: () => void }) {
     }
   }
 
-  function onPointerMove(e: React.PointerEvent<HTMLImageElement>) {
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -784,7 +783,7 @@ function ZoomableImage({ src, onClose }: { src: string; onClose: () => void }) {
     }
   }
 
-  function onPointerUp(e: React.PointerEvent<HTMLImageElement>) {
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) lastDistance.current = 0;
   }
@@ -792,7 +791,11 @@ function ZoomableImage({ src, onClose }: { src: string; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center overflow-hidden"
-      onClick={onClose}
+      style={{ touchAction: "none" }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       <button
         type="button"
@@ -805,17 +808,11 @@ function ZoomableImage({ src, onClose }: { src: string; onClose: () => void }) {
       <img
         src={src}
         alt="Receipt"
-        className="max-w-full max-h-full select-none"
+        className="max-w-full max-h-full select-none pointer-events-none"
         style={{
           transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
-          touchAction: "none",
           transition: pointers.current.size === 0 ? "transform 0.15s" : "none",
         }}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
         draggable={false}
       />
     </div>

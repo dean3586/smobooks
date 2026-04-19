@@ -11,6 +11,7 @@ import {
   Send,
   SkipForward,
   X,
+  ChevronDown,
 } from "lucide-react";
 import {
   MEAL_TYPES,
@@ -425,15 +426,20 @@ export default function UploadPage() {
                 <button
                   type="button"
                   onClick={() => setEditingCategory((v) => !v)}
-                  className="w-full flex justify-between items-center text-sm -mx-1 px-1 py-0.5 rounded hover:bg-gray-50"
+                  className="w-full flex justify-between items-center text-sm -mx-2 px-2 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100"
                 >
                   <span className="text-gray-500">Category</span>
-                  <span className={`font-medium ${detectedCategory ? "text-teal-600" : "text-gray-400"}`}>
-                    {detectedCategory || "Tap to set"} <span className="text-gray-400 text-xs ml-1">edit</span>
+                  <span className="flex items-center gap-1">
+                    <span className={`font-medium ${detectedCategory ? "text-teal-600" : "text-gray-400"}`}>
+                      {detectedCategory || "Tap to set"}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-400 transition-transform ${editingCategory ? "rotate-180" : ""}`}
+                    />
                   </span>
                 </button>
                 {editingCategory && (
-                  <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap gap-2 mt-2 pt-3 border-t border-gray-100">
                     {EXPENSE_CATEGORIES.map((cat) => (
                       <button
                         key={cat}
@@ -442,7 +448,7 @@ export default function UploadPage() {
                           setDetectedCategory(cat);
                           setEditingCategory(false);
                         }}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                           detectedCategory === cat
                             ? "bg-teal-600 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"

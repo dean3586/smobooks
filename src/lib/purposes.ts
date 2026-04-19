@@ -18,6 +18,7 @@ export const COMMON_PEOPLE = [
   "LACE",
   "Fellows",
   "Residents",
+  "Medical Student",
   "Dr. Collins",
   "Dr. Byrne",
   "Dr. Sarangapani",

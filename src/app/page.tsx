@@ -20,6 +20,7 @@ import {
   buildMealPurpose,
   buildGiftPurpose,
 } from "@/lib/purposes";
+import { EXPENSE_CATEGORIES } from "@/lib/categories";
 
 type PageState = "idle" | "uploading" | "purpose" | "success" | "error" | "bulk";
 
@@ -28,6 +29,11 @@ type BulkUpload = {
   preview: string;
   state: "uploading" | "done" | "error";
   error?: string;
+  receiptId?: string;
+  vendor?: string | null;
+  total?: number | null;
+  date?: string | null;
+  category?: string | null;
 };
 
 export default function UploadPage() {
@@ -36,6 +42,7 @@ export default function UploadPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [receiptId, setReceiptId] = useState<string | null>(null);
   const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
+  const [originalCategory, setOriginalCategory] = useState<string | null>(null);
   const [detectedVendor, setDetectedVendor] = useState<string | null>(null);
   const [detectedTotal, setDetectedTotal] = useState<number | null>(null);
   const [detectedDate, setDetectedDate] = useState<string | null>(null);
@@ -47,6 +54,13 @@ export default function UploadPage() {
 
   // Zoomed image modal
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+  // Bulk review queue (walked through after bulk upload if user chooses Review now)
+  const [bulkReviewQueue, setBulkReviewQueue] = useState<BulkUpload[]>([]);
+  const [bulkReviewIndex, setBulkReviewIndex] = useState(0);
+
+  // Category editor (tap category on purpose step to change)
+  const [editingCategory, setEditingCategory] = useState(false);
 
   // Purpose state
   const [mealType, setMealType] = useState<string | null>(null);
@@ -66,6 +80,7 @@ export default function UploadPage() {
   }
 
   const purposePreview = getPurpose();
+  const inBulkReview = bulkReviewQueue.length > 0;
 
   function formatDate(dateStr: string | null): string | null {
     if (!dateStr) return null;
@@ -99,6 +114,7 @@ export default function UploadPage() {
 
       setReceiptId(data.receiptId);
       setDetectedCategory(data.category);
+      setOriginalCategory(data.category);
       setDetectedVendor(data.vendor);
       setDetectedTotal(data.total);
       setDetectedDate(data.date);
@@ -136,7 +152,19 @@ export default function UploadPage() {
           if (!res.ok) throw new Error(data.error || "Upload failed");
 
           setBulkUploads((prev) =>
-            prev.map((item, idx) => (idx === i ? { ...item, state: "done" as const } : item))
+            prev.map((item, idx) =>
+              idx === i
+                ? {
+                    ...item,
+                    state: "done" as const,
+                    receiptId: data.receiptId,
+                    vendor: data.vendor,
+                    total: data.total,
+                    date: data.date,
+                    category: data.category,
+                  }
+                : item
+            )
           );
         } catch (error) {
           setBulkUploads((prev) =>
@@ -167,29 +195,94 @@ export default function UploadPage() {
     setter(list.includes(item) ? list.filter((i) => i !== item) : [...list, item]);
   }
 
-  async function submitPurpose() {
-    if (!receiptId || !purposePreview) {
-      skipPurpose();
+  function resetPurposeForm() {
+    setMealType(null);
+    setPeople([]);
+    setGiftOccasion(null);
+    setGiftRecipients([]);
+    setCustomPurpose("");
+    setEditingCategory(false);
+  }
+
+  function loadReceiptIntoForm(u: BulkUpload) {
+    setPreview(u.preview);
+    setReceiptId(u.receiptId || null);
+    setDetectedVendor(u.vendor ?? null);
+    setDetectedTotal(u.total ?? null);
+    setDetectedDate(u.date ?? null);
+    setDetectedCategory(u.category ?? null);
+    setOriginalCategory(u.category ?? null);
+    resetPurposeForm();
+  }
+
+  function advanceBulkReview() {
+    const nextIdx = bulkReviewIndex + 1;
+    if (nextIdx >= bulkReviewQueue.length) {
+      setBulkReviewQueue([]);
+      setBulkReviewIndex(0);
+      setState("success");
+      setMessage("All receipts reviewed!");
+    } else {
+      setBulkReviewIndex(nextIdx);
+      loadReceiptIntoForm(bulkReviewQueue[nextIdx]);
+    }
+  }
+
+  function startBulkReview() {
+    const done = bulkUploads.filter((u) => u.state === "done" && u.receiptId);
+    if (done.length === 0) {
+      setState("success");
+      setMessage("No receipts to review");
       return;
     }
+    setBulkReviewQueue(done);
+    setBulkReviewIndex(0);
+    loadReceiptIntoForm(done[0]);
+    setState("purpose");
+  }
 
-    try {
-      await fetch("/api/purpose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receiptId, purpose: purposePreview }),
-      });
-    } catch {
-      // Don't block
+  function exitBulkReview() {
+    setBulkReviewQueue([]);
+    setBulkReviewIndex(0);
+    setState("success");
+    setMessage("Review paused — unreviewed receipts are flagged in the dashboard.");
+  }
+
+  async function submitPurpose() {
+    const category = detectedCategory;
+    const categoryChanged = category !== originalCategory && category !== null;
+
+    if (receiptId && (purposePreview || categoryChanged)) {
+      try {
+        await fetch("/api/purpose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            receiptId,
+            ...(purposePreview ? { purpose: purposePreview } : {}),
+            ...(categoryChanged ? { category } : {}),
+          }),
+        });
+      } catch {
+        // Don't block
+      }
     }
 
-    setState("success");
-    setMessage("Receipt saved with purpose!");
+    if (inBulkReview) {
+      advanceBulkReview();
+    } else {
+      setState("success");
+      setMessage("Receipt saved with purpose!");
+    }
   }
 
   function skipPurpose() {
-    setState("success");
-    setMessage("Receipt saved!");
+    if (inBulkReview) {
+      advanceBulkReview();
+    } else {
+      setState("success");
+      setMessage("Receipt saved!");
+    }
   }
 
   function reset() {
@@ -198,16 +291,15 @@ export default function UploadPage() {
     setPreview(null);
     setReceiptId(null);
     setDetectedCategory(null);
+    setOriginalCategory(null);
     setDetectedVendor(null);
     setDetectedTotal(null);
     setDetectedDate(null);
-    setMealType(null);
-    setPeople([]);
-    setGiftOccasion(null);
-    setGiftRecipients([]);
-    setCustomPurpose("");
+    resetPurposeForm();
     bulkUploads.forEach((u) => URL.revokeObjectURL(u.preview));
     setBulkUploads([]);
+    setBulkReviewQueue([]);
+    setBulkReviewIndex(0);
   }
 
   const bulkDone = bulkUploads.filter((u) => u.state === "done").length;
@@ -277,9 +369,23 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* PURPOSE - After single photo upload */}
+        {/* PURPOSE - After single photo upload (also used for bulk review) */}
         {state === "purpose" && (
           <div className="space-y-5">
+            {inBulkReview && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-gray-700">
+                  Receipt {bulkReviewIndex + 1} of {bulkReviewQueue.length}
+                </span>
+                <button
+                  onClick={exitBulkReview}
+                  className="text-gray-400 hover:text-gray-600 font-medium"
+                >
+                  Pause review
+                </button>
+              </div>
+            )}
+
             {preview && (
               <button
                 type="button"
@@ -315,12 +421,39 @@ export default function UploadPage() {
                   <span className="font-medium text-gray-900">${detectedTotal.toFixed(2)}</span>
                 </div>
               )}
-              {detectedCategory && (
-                <div className="flex justify-between text-sm">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory((v) => !v)}
+                  className="w-full flex justify-between items-center text-sm -mx-1 px-1 py-0.5 rounded hover:bg-gray-50"
+                >
                   <span className="text-gray-500">Category</span>
-                  <span className="font-medium text-teal-600">{detectedCategory}</span>
-                </div>
-              )}
+                  <span className={`font-medium ${detectedCategory ? "text-teal-600" : "text-gray-400"}`}>
+                    {detectedCategory || "Tap to set"} <span className="text-gray-400 text-xs ml-1">edit</span>
+                  </span>
+                </button>
+                {editingCategory && (
+                  <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-gray-100">
+                    {EXPENSE_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => {
+                          if (cat !== detectedCategory) resetPurposeForm();
+                          setDetectedCategory(cat);
+                          setEditingCategory(false);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          detectedCategory === cat
+                            ? "bg-teal-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4">
@@ -461,11 +594,11 @@ export default function UploadPage() {
               </button>
               <button
                 onClick={submitPurpose}
-                disabled={!purposePreview}
+                disabled={!purposePreview && detectedCategory === originalCategory}
                 className="flex-[2] flex items-center justify-center gap-2 bg-teal-600 text-white rounded-2xl py-4 px-6 font-medium hover:bg-teal-700 disabled:opacity-40 disabled:hover:bg-teal-600 transition-colors"
               >
                 <Send className="w-4 h-4" />
-                Save Purpose
+                Save
               </button>
             </div>
           </div>
@@ -531,16 +664,33 @@ export default function UploadPage() {
             </div>
 
             {bulkUploading === 0 && (
-              <div className="text-center space-y-3">
-                <p className="text-sm text-gray-500">
-                  All done! Add purposes from the dashboard.
-                </p>
-                <button
-                  onClick={reset}
-                  className="w-full bg-teal-600 text-white rounded-2xl py-4 px-6 text-lg font-medium hover:bg-teal-700 transition-colors"
-                >
-                  Upload More
-                </button>
+              <div className="space-y-3">
+                {bulkDone > 0 ? (
+                  <>
+                    <button
+                      onClick={startBulkReview}
+                      className="w-full bg-teal-600 text-white rounded-2xl py-4 px-6 text-lg font-medium hover:bg-teal-700 transition-colors"
+                    >
+                      Review {bulkDone} Receipt{bulkDone !== 1 ? "s" : ""}
+                    </button>
+                    <button
+                      onClick={reset}
+                      className="w-full bg-white text-gray-600 rounded-2xl py-3 px-6 font-medium border-2 border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      Skip for now
+                    </button>
+                    <p className="text-xs text-center text-gray-400">
+                      Unreviewed receipts will be flagged in the dashboard.
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    onClick={reset}
+                    className="w-full bg-teal-600 text-white rounded-2xl py-4 px-6 text-lg font-medium hover:bg-teal-700 transition-colors"
+                  >
+                    Upload More
+                  </button>
+                )}
               </div>
             )}
           </div>

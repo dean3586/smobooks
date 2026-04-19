@@ -35,6 +35,7 @@ create table if not exists receipts (
   payment_method text,
   category text,
   description text,
+  purpose text,
 
   -- Raw Claude response for debugging
   raw_extraction jsonb,

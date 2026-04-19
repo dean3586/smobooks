@@ -39,6 +39,7 @@ interface Receipt {
   tax: number | null;
   category: string | null;
   description: string | null;
+  purpose: string | null;
   payment_method: string | null;
   status: string;
   reviewed: boolean;
@@ -123,6 +124,7 @@ export default function DashboardPage() {
         total: editingReceipt.total,
         category: editingReceipt.category,
         description: editingReceipt.description,
+        purpose: editingReceipt.purpose,
         notes: editingReceipt.notes,
         reviewed: true,
       })
@@ -157,12 +159,13 @@ export default function DashboardPage() {
   }
 
   function exportCSV() {
-    const headers = ["Date", "Vendor", "Category", "Description", "Total", "Tax", "Payment Method", "Status", "Reviewed"];
+    const headers = ["Date", "Vendor", "Category", "Description", "Purpose", "Total", "Tax", "Payment Method", "Status", "Reviewed"];
     const rows = receipts.map((r) => [
       r.receipt_date || "",
       r.vendor || "",
       r.category || "",
       r.description || "",
+      r.purpose || "",
       r.total?.toString() || "",
       r.tax?.toString() || "",
       r.payment_method || "",
@@ -182,7 +185,7 @@ export default function DashboardPage() {
 
   // Categorize flow helpers
   const unreviewedReceipts = receipts.filter(
-    (r) => !r.reviewed && r.status === "completed" && (!r.category || !r.description)
+    (r) => !r.reviewed && r.status === "completed" && (!r.category || !r.purpose)
   );
   const currentCategorizeReceipt = unreviewedReceipts[categorizeIndex];
 
@@ -215,12 +218,12 @@ export default function DashboardPage() {
     return catCustomPurpose.trim();
   }
 
-  async function saveCategorize(receipt: Receipt, category: string, description: string) {
+  async function saveCategorize(receipt: Receipt, category: string, purpose: string) {
     await getSupabase()
       .from("receipts")
       .update({
         category,
-        description: description || receipt.description,
+        purpose: purpose || receipt.purpose,
         reviewed: true,
       })
       .eq("id", receipt.id);
@@ -785,9 +788,11 @@ export default function DashboardPage() {
                     <span>{receipt.receipt_date || "No date"}</span>
                     {receipt.category && <span>{receipt.category}</span>}
                   </div>
-                  {receipt.description && (
-                    <div className="text-xs text-gray-400 truncate mt-0.5">{receipt.description}</div>
-                  )}
+                  {receipt.purpose ? (
+                    <div className="text-xs text-gray-600 truncate mt-0.5">{receipt.purpose}</div>
+                  ) : receipt.description ? (
+                    <div className="text-xs text-gray-400 italic truncate mt-0.5">{receipt.description}</div>
+                  ) : null}
                 </div>
                 <div className="text-right flex-shrink-0">
                   <div className="font-semibold text-gray-900">
@@ -872,11 +877,21 @@ export default function DashboardPage() {
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Description / Purpose</label>
+                  <label className="block text-xs text-gray-500 mb-1">Description <span className="text-gray-400">(auto)</span></label>
                   <input
                     type="text"
                     value={editingReceipt.description || ""}
                     onChange={(e) => setEditingReceipt({ ...editingReceipt, description: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">Purpose</label>
+                  <input
+                    type="text"
+                    value={editingReceipt.purpose || ""}
+                    onChange={(e) => setEditingReceipt({ ...editingReceipt, purpose: e.target.value })}
+                    placeholder="Business reason for this expense"
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
                   />
                 </div>

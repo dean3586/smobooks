@@ -3,17 +3,25 @@ import { createServiceClient } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
-    const { receiptId, purpose } = await request.json();
+    const { receiptId, purpose, category } = await request.json();
 
-    if (!receiptId || !purpose) {
-      return NextResponse.json({ error: "Missing receiptId or purpose" }, { status: 400 });
+    if (!receiptId) {
+      return NextResponse.json({ error: "Missing receiptId" }, { status: 400 });
+    }
+
+    if (!purpose && !category) {
+      return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
     const supabase = createServiceClient();
 
+    const update: Record<string, string> = {};
+    if (purpose) update.purpose = purpose;
+    if (category) update.category = category;
+
     const { error } = await supabase
       .from("receipts")
-      .update({ description: purpose })
+      .update(update)
       .eq("id", receiptId);
 
     if (error) {

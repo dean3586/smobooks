@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       category: extracted?.category || null,
       vendor: extracted?.vendor || null,
       total: extracted?.total || null,
+      date: extracted?.receipt_date || null,
       message: "Receipt uploaded and processed!",
     });
   } catch (error) {

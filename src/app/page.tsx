@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import {
   Camera,
   CheckCircle,
@@ -9,6 +10,7 @@ import {
   Images,
   Send,
   SkipForward,
+  X,
 } from "lucide-react";
 import {
   MEAL_TYPES,
@@ -36,11 +38,15 @@ export default function UploadPage() {
   const [detectedCategory, setDetectedCategory] = useState<string | null>(null);
   const [detectedVendor, setDetectedVendor] = useState<string | null>(null);
   const [detectedTotal, setDetectedTotal] = useState<number | null>(null);
+  const [detectedDate, setDetectedDate] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Bulk upload state
   const [bulkUploads, setBulkUploads] = useState<BulkUpload[]>([]);
+
+  // Zoomed image modal
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Purpose state
   const [mealType, setMealType] = useState<string | null>(null);
@@ -60,6 +66,17 @@ export default function UploadPage() {
   }
 
   const purposePreview = getPurpose();
+
+  function formatDate(dateStr: string | null): string | null {
+    if (!dateStr) return null;
+    const [y, m, d] = dateStr.split("-").map(Number);
+    if (!y || !m || !d) return dateStr;
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
 
   // Single photo upload (camera)
   async function handleSingleFile(file: File) {
@@ -84,6 +101,7 @@ export default function UploadPage() {
       setDetectedCategory(data.category);
       setDetectedVendor(data.vendor);
       setDetectedTotal(data.total);
+      setDetectedDate(data.date);
       setState("purpose");
     } catch (error) {
       setState("error");
@@ -182,6 +200,7 @@ export default function UploadPage() {
     setDetectedCategory(null);
     setDetectedVendor(null);
     setDetectedTotal(null);
+    setDetectedDate(null);
     setMealType(null);
     setPeople([]);
     setGiftOccasion(null);
@@ -262,11 +281,18 @@ export default function UploadPage() {
         {state === "purpose" && (
           <div className="space-y-5">
             {preview && (
-              <img
-                src={preview}
-                alt="Receipt preview"
-                className="w-full max-h-36 object-contain rounded-xl border border-gray-200"
-              />
+              <button
+                type="button"
+                onClick={() => setZoomedImage(preview)}
+                className="block w-full"
+                aria-label="Enlarge receipt"
+              >
+                <img
+                  src={preview}
+                  alt="Receipt preview"
+                  className="w-full max-h-36 object-contain rounded-xl border border-gray-200 cursor-zoom-in"
+                />
+              </button>
             )}
 
             {/* What Claude detected */}
@@ -275,6 +301,12 @@ export default function UploadPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Vendor</span>
                   <span className="font-medium text-gray-900">{detectedVendor}</span>
+                </div>
+              )}
+              {detectedDate && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Date</span>
+                  <span className="font-medium text-gray-900">{formatDate(detectedDate)}</span>
                 </div>
               )}
               {detectedTotal != null && (
@@ -306,27 +338,31 @@ export default function UploadPage() {
 
               {/* Meals & Entertainment: meal type + people pills */}
               {detectedCategory === "Meals & Entertainment" && (
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs text-gray-400 mb-1.5">Type</span>
-                    <div className="flex flex-wrap gap-2">
-                      {MEAL_TYPES.map((type) => (
-                        <button
-                          key={type}
-                          onClick={() => setMealType(mealType === type ? null : type)}
-                          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                            mealType === type
-                              ? "bg-teal-600 text-white"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {MEAL_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setMealType(mealType === type ? null : type)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                          mealType === type
+                            ? "bg-teal-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
                   </div>
+                  <input
+                    type="text"
+                    value={customPurpose}
+                    onChange={(e) => setCustomPurpose(e.target.value)}
+                    placeholder="Or type a custom purpose..."
+                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-teal-500 focus:ring-teal-500"
+                  />
                   <div>
-                    <span className="block text-xs text-gray-400 mb-1.5">With whom</span>
+                    <h2 className="font-semibold text-gray-900 mb-2">With whom</h2>
                     <div className="flex flex-wrap gap-2">
                       {COMMON_PEOPLE.map((person) => (
                         <button
@@ -388,18 +424,20 @@ export default function UploadPage() {
                 </div>
               )}
 
-              {/* Custom text - always available */}
-              <input
-                type="text"
-                value={customPurpose}
-                onChange={(e) => setCustomPurpose(e.target.value)}
-                placeholder={
-                  detectedCategory === "Meals & Entertainment" || detectedCategory === "Gift"
-                    ? "Or type a custom purpose..."
-                    : "e.g. Taxi to airport for conference"
-                }
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-teal-500 focus:ring-teal-500"
-              />
+              {/* Custom text - for non-meals categories */}
+              {detectedCategory !== "Meals & Entertainment" && (
+                <input
+                  type="text"
+                  value={customPurpose}
+                  onChange={(e) => setCustomPurpose(e.target.value)}
+                  placeholder={
+                    detectedCategory === "Gift"
+                      ? "Or type a custom purpose..."
+                      : "e.g. Taxi to airport for conference"
+                  }
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:border-teal-500 focus:ring-teal-500"
+                />
+              )}
 
               {/* Purpose preview */}
               {purposePreview && (
@@ -523,7 +561,113 @@ export default function UploadPage() {
             </button>
           </div>
         )}
+
+        <div className="mt-12 text-center">
+          <Link
+            href="/login"
+            className="text-sm text-gray-400 hover:text-teal-600 transition-colors"
+          >
+            Log in to dashboard
+          </Link>
+        </div>
       </div>
+
+      {zoomedImage && (
+        <ZoomableImage src={zoomedImage} onClose={() => setZoomedImage(null)} />
+      )}
+    </div>
+  );
+}
+
+function ZoomableImage({ src, onClose }: { src: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const lastDistance = useRef(0);
+  const lastTapAt = useRef(0);
+  const scaleRef = useRef(1);
+
+  function updateScale(next: number) {
+    const clamped = Math.min(Math.max(next, 1), 5);
+    scaleRef.current = clamped;
+    setScale(clamped);
+    if (clamped === 1) setTranslate({ x: 0, y: 0 });
+  }
+
+  function pointerDistance() {
+    const pts = Array.from(pointers.current.values());
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLImageElement>) {
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.current.size === 1) {
+      const now = Date.now();
+      if (now - lastTapAt.current < 300) {
+        updateScale(scaleRef.current > 1 ? 1 : 2.5);
+      }
+      lastTapAt.current = now;
+    } else if (pointers.current.size === 2) {
+      lastDistance.current = pointerDistance();
+    }
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLImageElement>) {
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.current.size === 2) {
+      const dist = pointerDistance();
+      if (lastDistance.current > 0) {
+        updateScale(scaleRef.current * (dist / lastDistance.current));
+      }
+      lastDistance.current = dist;
+    } else if (pointers.current.size === 1 && scaleRef.current > 1) {
+      setTranslate((t) => ({
+        x: t.x + (e.clientX - prev.x),
+        y: t.y + (e.clientY - prev.y),
+      }));
+    }
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLImageElement>) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) lastDistance.current = 0;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center overflow-hidden"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 text-white bg-white/10 hover:bg-white/20 rounded-full p-2"
+        aria-label="Close"
+      >
+        <X className="w-6 h-6" />
+      </button>
+      <img
+        src={src}
+        alt="Receipt"
+        className="max-w-full max-h-full select-none"
+        style={{
+          transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+          touchAction: "none",
+          transition: pointers.current.size === 0 ? "transform 0.15s" : "none",
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        draggable={false}
+      />
     </div>
   );
 }
